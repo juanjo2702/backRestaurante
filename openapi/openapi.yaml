@@ -1,0 +1,823 @@
+openapi: 3.1.0
+info:
+  title: Gusto Bolivia API
+  version: 1.0.0
+  summary: Contrato canonico para QR admin, pagos mock, inventario y fidelizacion.
+servers:
+  - url: http://localhost:8000
+    description: Local
+tags:
+  - name: Tables
+  - name: QR Exports
+  - name: Payments
+  - name: Public Tables
+  - name: Inventory
+  - name: Loyalty
+paths:
+  /api/v1/tables:
+    get:
+      tags: [Tables]
+      summary: Listar mesas operativas
+      security:
+        - sanctumAuth: []
+      responses:
+        '200':
+          description: Coleccion de mesas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Table'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/v1/tables/{mesa}:
+    get:
+      tags: [Tables]
+      summary: Obtener detalle de mesa
+      security:
+        - sanctumAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TableId'
+      responses:
+        '200':
+          description: Mesa encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/v1/tables/{mesa}/qr.svg:
+    get:
+      tags: [QR Exports]
+      summary: Descargar QR individual en SVG
+      security:
+        - sanctumAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TableId'
+      responses:
+        '200':
+          description: QR en SVG
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/v1/tables/{mesa}/qr.pdf:
+    get:
+      tags: [QR Exports]
+      summary: Descargar QR individual en PDF
+      security:
+        - sanctumAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TableId'
+      responses:
+        '200':
+          description: QR en PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/v1/tables/qr/bulk-export:
+    post:
+      tags: [QR Exports]
+      summary: Exportar QR de varias mesas
+      security:
+        - sanctumAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QrExportRequest'
+      responses:
+        '200':
+          description: Archivo generado
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/payments/intents:
+    post:
+      tags: [Payments]
+      summary: Crear intencion de pago para una mesa
+      security:
+        - sanctumAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mesa_id, method]
+              properties:
+                mesa_id:
+                  type: integer
+                method:
+                  type: string
+                  enum: [cash, card, qr]
+      responses:
+        '201':
+          description: Intencion creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentTransaction'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/payments/{payment}/mock-checkout/session:
+    post:
+      tags: [Payments]
+      summary: Crear sesion temporal de checkout mock
+      security:
+        - sanctumAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Sesion mock creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockCheckoutSession'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/v1/payments/mock-checkout/submit:
+    post:
+      tags: [Payments]
+      summary: Procesar checkout simulado con tarjeta de prueba
+      security:
+        - sanctumAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockCheckoutSubmitRequest'
+      responses:
+        '200':
+          description: Checkout procesado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockCheckoutResult'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/public/table-sessions:
+    post:
+      tags: [Public Tables]
+      summary: Activar sesion publica de una mesa QR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mesa_uuid, signature]
+              properties:
+                mesa_uuid:
+                  type: string
+                  format: uuid
+                signature:
+                  type: string
+                fingerprint:
+                  type: string
+      responses:
+        '201':
+          description: Sesion creada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [table_session_token, table, expires_at]
+                properties:
+                  table_session_token:
+                    type: string
+                  table:
+                    $ref: '#/components/schemas/Table'
+                  expires_at:
+                    type: string
+                    format: date-time
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/public/tables/{uuid}:
+    get:
+      tags: [Public Tables]
+      summary: Consultar estado publico de una mesa
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sig
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mesa publica valida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Table'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/public/tables/{uuid}/payment:
+    post:
+      tags: [Public Tables]
+      summary: Marcar pago enviado por cliente
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [monto]
+              properties:
+                monto:
+                  type: number
+                  format: float
+                metodo:
+                  type: string
+                  enum: [qr, cash, card]
+      responses:
+        '200':
+          description: Pago cliente registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  pago_pendiente_cliente_pago:
+                    type: boolean
+                  pago_pendiente_fecha:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  pago_pendiente_metodo:
+                    type: string
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/public/payments/{payment}/mock-checkout/session:
+    post:
+      tags: [Public Tables]
+      summary: Crear checkout mock desde experiencia publica
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Sesion mock creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockCheckoutSession'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /api/public/payments/mock-checkout/submit:
+    post:
+      tags: [Public Tables]
+      summary: Enviar tarjeta ficticia al mock gateway desde el modulo publico
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockCheckoutSubmitRequest'
+      responses:
+        '200':
+          description: Resultado del checkout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockCheckoutResult'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/inventory/adjustments:
+    post:
+      tags: [Inventory]
+      summary: Registrar ajuste manual de inventario
+      security:
+        - sanctumAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ingrediente_id, quantity, notes]
+              properties:
+                ingrediente_id:
+                  type: integer
+                quantity:
+                  type: number
+                  format: float
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Movimiento creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryMovement'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/public/loyalty/points:
+    get:
+      tags: [Loyalty]
+      summary: Consultar saldo y movimientos de puntos por telefono
+      parameters:
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Saldo de fidelizacion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: integer
+                  customer_name:
+                    type: string
+                    nullable: true
+                  last_activity:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  transactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LoyaltyPointTransaction'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/public/loyalty/redeem:
+    post:
+      tags: [Loyalty]
+      summary: Canjear puntos por telefono
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, points]
+              properties:
+                phone:
+                  type: string
+                points:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Canje exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  remaining_points:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+components:
+  securitySchemes:
+    sanctumAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+  parameters:
+    TableId:
+      name: mesa
+      in: path
+      required: true
+      schema:
+        type: integer
+    PaymentId:
+      name: payment
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    UnauthorizedError:
+      description: No autenticado o sesion invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Recurso bloqueado o firma invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: Conflicto de negocio
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Error de validacion
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - type: object
+                properties:
+                  errors:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    Table:
+      type: object
+      properties:
+        id:
+          type: integer
+        uuid:
+          type: string
+          format: uuid
+          nullable: true
+        numero:
+          type: integer
+        capacidad:
+          type: integer
+        estado:
+          type: string
+          enum: [libre, ocupada, reservada]
+        ocupada_desde:
+          type: string
+          format: date-time
+          nullable: true
+        llamada_tipo:
+          type: string
+          nullable: true
+        llamada_timestamp:
+          type: string
+          format: date-time
+          nullable: true
+        pago_pendiente_monto:
+          type: number
+          format: float
+          nullable: true
+        pago_pendiente_cliente_pago:
+          type: boolean
+        pago_pendiente_metodo:
+          type: string
+          nullable: true
+        pago_pendiente_fecha:
+          type: string
+          format: date-time
+          nullable: true
+        pending_payment_id:
+          type: integer
+          nullable: true
+        is_qr_enabled:
+          type: boolean
+        qr_signature:
+          type: string
+          nullable: true
+        public_url:
+          type: string
+          nullable: true
+        payment_transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentTransaction'
+        session:
+          $ref: '#/components/schemas/TableSession'
+      required:
+        - id
+        - numero
+        - capacidad
+        - estado
+        - is_qr_enabled
+    TableSession:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [active, closed, expired]
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+    QrExportRequest:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          enum: [zip_svg, pdf]
+        table_ids:
+          type: array
+          items:
+            type: integer
+        enabled_only:
+          type: boolean
+    PaymentTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        pedido_id:
+          type: integer
+          nullable: true
+        mesa_id:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+          format: float
+        method:
+          type: string
+          enum: [cash, card, qr]
+        status:
+          type: string
+          enum: [pending, client_paid, confirmed, cancelled]
+        reference:
+          type: string
+          nullable: true
+        client_paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, amount, method, status]
+    MockCheckoutSession:
+      type: object
+      required: [checkout_token, expires_at, amount, payment_id]
+      properties:
+        checkout_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        amount:
+          type: number
+          format: float
+        payment_id:
+          type: integer
+    MockCheckoutSubmitRequest:
+      type: object
+      required:
+        - checkout_token
+        - cardholder_name
+        - pan
+        - expiry_month
+        - expiry_year
+        - cvv
+      properties:
+        checkout_token:
+          type: string
+        cardholder_name:
+          type: string
+        pan:
+          type: string
+          description: Tarjeta de prueba. No se persiste completa.
+        expiry_month:
+          type: string
+        expiry_year:
+          type: string
+        cvv:
+          type: string
+    MockCheckoutResult:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum: [success, declined, insufficient_funds, timeout]
+        message:
+          type: string
+        retryable:
+          type: boolean
+        payment:
+          $ref: '#/components/schemas/PaymentTransaction'
+        order_updates:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              estado:
+                type: string
+              fecha_pago:
+                type: string
+                format: date-time
+                nullable: true
+              metodo_pago:
+                type: string
+                nullable: true
+        gateway_attempt:
+          $ref: '#/components/schemas/MockGatewayAttempt'
+        authorization_attempt:
+          $ref: '#/components/schemas/MockGatewayAttempt'
+    MockGatewayAttempt:
+      type: object
+      properties:
+        id:
+          type: integer
+        payment_transaction_id:
+          type: integer
+        provider:
+          type: string
+        stage:
+          type: string
+          enum: [authorization, capture]
+        outcome:
+          type: string
+          enum: [success, declined, insufficient_funds, timeout]
+        gateway_reference:
+          type: string
+          nullable: true
+        authorization_code:
+          type: string
+          nullable: true
+        card_brand:
+          type: string
+          nullable: true
+        card_last4:
+          type: string
+          nullable: true
+        request_token_hash:
+          type: string
+        response_payload:
+          type: object
+          additionalProperties: true
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+    InventoryMovement:
+      type: object
+      properties:
+        id:
+          type: integer
+        ingrediente_id:
+          type: integer
+        pedido_id:
+          type: integer
+          nullable: true
+        user_id:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [restock, adjustment, consumption, reversal]
+        quantity:
+          type: number
+          format: float
+        stock_before:
+          type: number
+          format: float
+        stock_after:
+          type: number
+          format: float
+        reference:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    LoyaltyPoint:
+      type: object
+      properties:
+        id:
+          type: integer
+        customer_name:
+          type: string
+          nullable: true
+        customer_phone:
+          type: string
+        points:
+          type: integer
+        last_order_id:
+          type: integer
+          nullable: true
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+    LoyaltyPointTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        loyalty_point_id:
+          type: integer
+        pedido_id:
+          type: integer
+          nullable: true
+        user_id:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [earn, redeem, adjustment]
+        points_delta:
+          type: integer
+        balance_after:
+          type: integer
+        reference:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
