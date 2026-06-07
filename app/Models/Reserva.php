@@ -66,6 +66,6 @@ class Reserva extends Model
             return null;
         }
 
-        return Storage::disk($this->garantia_comprobante_disk ?: 'public')->url($this->garantia_comprobante_path);
+        return asset('storage/' . ltrim($this->garantia_comprobante_path, '/'));
     }
 }

@@ -213,6 +213,7 @@ class ReservaController extends Controller
         }
 
         $reserva->update($attributes);
+        $this->syncMesaStateForReservation($reserva->fresh('mesa'));
 
         return response()->json($this->reservationPayload(
             $reserva->fresh()->load(['mesa', 'garantiaRevisadaPorUsuario:id,nombre'])
