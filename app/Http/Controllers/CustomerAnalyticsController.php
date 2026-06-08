@@ -15,15 +15,21 @@ class CustomerAnalyticsController extends Controller
         $limit = (int) $request->query('limit', 10);
         $startDate = $this->startDateForPeriod($period);
 
+        $concatExpression = DB::connection()->getDriverName() === 'sqlite'
+            ? "'Mesa ' || mesas.numero"
+            : "CONCAT('Mesa ', mesas.numero)";
+
+        $customerNameExpression = "COALESCE(pedidos.nombre_cliente, $concatExpression, 'Cliente Ocasional')";
+
         $topCustomers = Pedido::query()
-            ->leftJoin('usuarios', 'pedidos.usuario_id', '=', 'usuarios.id')
+            ->leftJoin('mesas', 'pedidos.mesa_id', '=', 'mesas.id')
             ->where('pedidos.created_at', '>=', $startDate)
             ->whereIn('pedidos.estado', ['pagado', 'servido'])
-            ->selectRaw('COALESCE(pedidos.nombre_cliente, usuarios.nombre) as customer_name')
+            ->selectRaw("$customerNameExpression as customer_name")
             ->selectRaw('COUNT(*) as order_count')
             ->selectRaw('SUM(pedidos.total) as total_spent')
             ->selectRaw('MAX(pedidos.created_at) as last_order_at')
-            ->groupBy(DB::raw('COALESCE(pedidos.nombre_cliente, usuarios.nombre)'))
+            ->groupBy(DB::raw($customerNameExpression))
             ->orderByDesc('total_spent')
             ->limit($limit)
             ->get();
@@ -33,17 +39,29 @@ class CustomerAnalyticsController extends Controller
 
     public function customerRetention()
     {
-        $paidOrServedOrders = Pedido::query()->whereIn('estado', ['pagado', 'servido']);
+        $paidOrServedOrders = Pedido::query()
+            ->leftJoin('mesas', 'pedidos.mesa_id', '=', 'mesas.id')
+            ->whereIn('pedidos.estado', ['pagado', 'servido']);
+
+        $concatExpression = DB::connection()->getDriverName() === 'sqlite'
+            ? "'Mesa ' || mesas.numero"
+            : "CONCAT('Mesa ', mesas.numero)";
+
+        $fallbackExpression = DB::connection()->getDriverName() === 'sqlite'
+            ? "'takeaway_' || pedidos.id"
+            : "CONCAT('takeaway_', pedidos.id)";
+
+        $customerKeyExpression = "COALESCE(pedidos.nombre_cliente, $concatExpression, $fallbackExpression)";
 
         $repeatCustomers = (clone $paidOrServedOrders)
-            ->selectRaw('COALESCE(nombre_cliente, CAST(usuario_id AS CHAR)) as customer_key')
-            ->groupBy('customer_key')
+            ->selectRaw("$customerKeyExpression as customer_key")
+            ->groupBy(DB::raw($customerKeyExpression))
             ->havingRaw('COUNT(*) > 1')
             ->get()
             ->count();
 
         $totalCustomers = (int) ((clone $paidOrServedOrders)
-            ->selectRaw('COUNT(DISTINCT COALESCE(nombre_cliente, CAST(usuario_id AS CHAR))) as total')
+            ->selectRaw("COUNT(DISTINCT $customerKeyExpression) as total")
             ->value('total') ?? 0);
 
         $retentionRate = $totalCustomers > 0

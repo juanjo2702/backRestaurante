@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CashRegisterSession;
 use App\Models\Pedido;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 
 class CashRegisterService
@@ -29,7 +30,7 @@ class CashRegisterService
 
     public function close(CashRegisterSession $session, float $closingAmount, ?string $notes = null): CashRegisterSession
     {
-        $pendingOrders = Pedido::whereDate('created_at', today())
+        $pendingOrders = Pedido::where('created_at', '>=', $session->opened_at)
             ->whereNotIn('estado', ['pagado', 'cancelado'])
             ->count();
 
@@ -37,7 +38,10 @@ class CashRegisterService
             throw new \RuntimeException('No se puede cerrar caja con pedidos pendientes');
         }
 
-        $expected = (float) Pedido::whereDate('fecha_pago', today())->sum('total');
+        $expected = (float) PaymentTransaction::where('status', 'confirmed')
+            ->where('confirmed_by', $session->user_id)
+            ->whereBetween('confirmed_at', [$session->opened_at, now()])
+            ->sum('amount');
 
         $session->update([
             'status' => 'closed',
@@ -50,3 +54,4 @@ class CashRegisterService
         return $session->fresh();
     }
 }
+

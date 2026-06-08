@@ -102,22 +102,27 @@ class ReportController extends Controller
         $totalOrders = (int) (clone $ordersQuery)->count();
         $avgTicket = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
 
-        $distinctUsers = (int) (clone $ordersQuery)
-            ->whereNotNull('usuario_id')
-            ->distinct('usuario_id')
-            ->count('usuario_id');
+        $distinctSessions = (int) (clone $ordersQuery)
+            ->whereNotNull('table_session_id')
+            ->distinct('table_session_id')
+            ->count('table_session_id');
 
-        $distinctTakeawayClients = (int) (clone $ordersQuery)
-            ->whereNull('usuario_id')
+        $distinctNamedClients = (int) (clone $ordersQuery)
+            ->whereNull('table_session_id')
             ->whereNotNull('nombre_cliente')
             ->distinct('nombre_cliente')
             ->count('nombre_cliente');
+
+        $anonymousOrders = (int) (clone $ordersQuery)
+            ->whereNull('table_session_id')
+            ->whereNull('nombre_cliente')
+            ->count();
 
         return [
             'revenue' => $totalRevenue,
             'orders' => $totalOrders,
             'avg_ticket' => $avgTicket,
-            'clients' => $distinctUsers + $distinctTakeawayClients,
+            'clients' => $distinctSessions + $distinctNamedClients + $anonymousOrders,
         ];
     }
 

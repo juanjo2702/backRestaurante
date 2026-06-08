@@ -88,6 +88,7 @@ class PlatformHardeningTest extends TestCase
         $firstOrder = Pedido::create([
             'mesa_id' => $mesa->id,
             'usuario_id' => $user->id,
+            'nombre_cliente' => 'Cliente Frecuente',
             'tipo_pedido' => 'mesa',
             'estado' => 'pagado',
             'total' => 90,
@@ -98,7 +99,7 @@ class PlatformHardeningTest extends TestCase
         $secondOrder = Pedido::create([
             'mesa_id' => null,
             'usuario_id' => $user->id,
-            'nombre_cliente' => null,
+            'nombre_cliente' => 'Cliente Frecuente',
             'telefono_cliente' => '+59170000001',
             'tipo_pedido' => 'llevar',
             'estado' => 'servido',
@@ -150,7 +151,7 @@ class PlatformHardeningTest extends TestCase
         $this->getJson('/api/v1/customers/top?period=week')
             ->assertOk()
             ->assertJsonFragment([
-                'customer_name' => 'Operador Reportes',
+                'customer_name' => 'Cliente Frecuente',
                 'order_count' => 2,
             ]);
 
