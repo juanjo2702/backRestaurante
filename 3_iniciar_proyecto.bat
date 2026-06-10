@@ -1,0 +1,57 @@
+@echo off
+title Iniciar Proyecto - Restaurante
+chcp 65001 > nul
+
+echo ===================================================
+echo     Iniciando Servidores (Backend y Frontend)
+echo ===================================================
+echo.
+
+:: 1. Detectar PHP
+set PHP_BIN=php
+where php >nul 2>nul
+if %errorlevel% neq 0 (
+    if exist "C:\xampp\php\php.exe" (
+        set PHP_BIN="C:\xampp\php\php.exe"
+    ) else (
+        echo [ERROR] No se encontró PHP. Instala XAMPP antes de continuar.
+        pause
+        exit /b 1
+    )
+)
+
+echo [OK] PHP detectado: %PHP_BIN%
+echo.
+
+:: 2. Levantar el Backend
+echo Iniciando backend (Laravel) en una nueva ventana...
+start "Restaurante - API Backend" cmd /c "title Restaurante - API Backend && %PHP_BIN% artisan serve"
+
+:: 3. Levantar el Frontend
+set FRONT_DIR=
+if exist "..\frontRestaurante" (
+    set FRONT_DIR=..\frontRestaurante
+) else if exist "..\frontrestaurante" (
+    set FRONT_DIR=..\frontrestaurante
+)
+
+if "%FRONT_DIR%"=="" (
+    echo [WARNING] No se encontró la carpeta del frontend (frontRestaurante) para iniciar el servidor.
+    echo Asegúrate de iniciar el frontend manualmente.
+) else (
+    echo Iniciando frontend (Vite/React) en una nueva ventana...
+    start "Restaurante - Web Frontend" cmd /c "title Restaurante - Web Frontend && cd %FRONT_DIR% && npm run dev"
+)
+
+echo.
+echo ===================================================
+echo 🚀 ¡Servidores en ejecución!
+echo ===================================================
+echo.
+echo 👉 API Backend: http://127.0.0.1:8000
+echo 👉 Frontend Web: http://localhost:5173 (o el que indique la consola)
+echo.
+echo Puedes cerrar esta ventana. Deja abiertas las otras dos.
+echo ===================================================
+echo.
+pause
