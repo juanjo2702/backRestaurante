@@ -39,8 +39,8 @@ class OperationalDemoSeeder extends Seeder
         $this->seedInventoryTimeline($ingredients, $cashier, $inventorySeeder);
 
         $seededOrders = collect();
-        foreach (range(1, 42) as $index) {
-            $createdAt = now()->subDays(rand(0, 29))->setTime(rand(12, 22), rand(0, 59));
+        foreach (range(1, 180) as $index) {
+            $createdAt = now()->subDays(rand(0, 59))->setTime(rand(12, 22), rand(0, 59));
             $updatedAt = $createdAt->copy()->addMinutes(rand(12, 95));
             $table = $index % 4 === 0 ? null : $tables->random();
             $selected = $products->random(rand(1, 3));
@@ -155,8 +155,8 @@ class OperationalDemoSeeder extends Seeder
         foreach ($ingredients as $index => $ingredient) {
             $inventorySeeder->restock(
                 ingrediente: $ingredient,
-                quantity: 8 + ($index % 5) * 3,
-                occurredAt: now()->subDays(30 - ($index % 6))->setTime(7 + ($index % 3), 15),
+                quantity: 500 + ($index % 5) * 50,
+                occurredAt: now()->subDays(61 - ($index % 6))->setTime(7 + ($index % 3), 15),
                 actor: $cashier,
             );
         }
@@ -165,7 +165,7 @@ class OperationalDemoSeeder extends Seeder
             $inventorySeeder->adjustment(
                 ingrediente: $ingredient,
                 quantityDelta: -1 * (0.25 + ($index * 0.1)),
-                occurredAt: now()->subDays(9 - $index)->setTime(9, 30),
+                occurredAt: now()->subDays(30 - $index)->setTime(9, 30),
                 actor: $cashier,
             );
         }
@@ -173,25 +173,32 @@ class OperationalDemoSeeder extends Seeder
 
     private function seedReservations(): void
     {
-        $reservations = [
-            ['mesa' => 3, 'nombre_cliente' => 'Fernanda Lopez Demo', 'cantidad_personas' => 4, 'telefono' => '+591 72233445', 'hora_reserva' => now()->addHour(), 'estado' => 'pendiente'],
-            ['mesa' => 5, 'nombre_cliente' => 'Diego Vargas Demo', 'cantidad_personas' => 6, 'telefono' => '+591 78811223', 'hora_reserva' => now()->addHours(2), 'estado' => 'confirmada'],
-        ];
+        $names = ['Fernanda Lopez', 'Diego Vargas', 'Juan Carlos Mamani', 'Maria Quispe', 'Alejandro Flores', 'Carla Siles', 'Rodrigo Rocha', 'Patricia Balderrama', 'Gustavo Claros', 'Sofia Camacho', 'Martin Villarroel', 'Gabriela Justiniano', 'Carlos Mendoza', 'Daniela Suarez', 'Mauricio Osinaga'];
+        
+        $tables = Mesa::orderBy('numero')->get();
+        if ($tables->isEmpty()) {
+            return;
+        }
 
-        foreach ($reservations as $reservation) {
-            $mesa = Mesa::where('numero', $reservation['mesa'])->first();
-            if (!$mesa) {
-                continue;
-            }
+        foreach ($names as $idx => $name) {
+            $daysInFuture = rand(0, 30);
+            $hour = rand(12, 21);
+            $minute = collect([0, 30])->random();
+            $dateTime = now()->addDays($daysInFuture)->setTime($hour, $minute, 0);
 
-            Reserva::updateOrCreate(
-                ['mesa_id' => $mesa->id, 'nombre_cliente' => $reservation['nombre_cliente'], 'hora_reserva' => $reservation['hora_reserva']],
-                [
-                    'cantidad_personas' => $reservation['cantidad_personas'],
-                    'telefono' => $reservation['telefono'],
-                    'estado' => $reservation['estado'],
-                ]
-            );
+            $table = $tables->random();
+
+            Reserva::create([
+                'mesa_id' => $table->id,
+                'nombre_cliente' => $name . ' Demo',
+                'cantidad_personas' => rand(2, 8),
+                'telefono' => '+591 7' . str_pad((string) rand(1000000, 9999999), 7, '0', STR_PAD_LEFT),
+                'hora_reserva' => $dateTime,
+                'estado' => collect(['pendiente', 'confirmada', 'cancelada'])->random(),
+                'garantia_estado' => 'approved',
+                'garantia_monto' => 50,
+                'garantia_referencia' => 'TX-' . rand(10000, 99999),
+            ]);
         }
     }
 
