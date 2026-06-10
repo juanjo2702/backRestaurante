@@ -7,26 +7,39 @@ echo     Configurador del Proyecto y Base de Datos
 echo ===================================================
 echo.
 
-:: 1. Detectar PHP
-set PHP_BIN=php
+:: 1. Detectar PHP en múltiples discos y rutas comunes
+set PHP_BIN=
 where php >nul 2>nul
-if %errorlevel% neq 0 (
-    if exist "C:\xampp\php\php.exe" (
-        set PHP_BIN="C:\xampp\php\php.exe"
-        echo [OK] PHP detectado en XAMPP: C:\xampp\php\php.exe
-    ) else (
-        echo [ERROR] No se encontró PHP.
-        echo Asegúrate de tener XAMPP instalado en la ruta por defecto o PHP en el PATH de Windows.
-        echo.
-        pause
-        exit /b 1
-    )
+if %errorlevel% equ 0 (
+    set PHP_BIN=php
+    echo [OK] PHP detectado en el PATH del sistema.
 ) else (
-    echo [OK] PHP detectado globalmente en el sistema.
+    echo [INFO] Buscando PHP en directorios comunes...
+    for %%d in (C D E F G) do (
+        if exist "%%d:\xampp\php\php.exe" (
+            set PHP_BIN="%%d:\xampp\php\php.exe"
+            echo [OK] PHP detectado en XAMPP: %%d:\xampp\php\php.exe
+            goto php_found
+        )
+        if exist "%%d:\laragon\bin\php" (
+            for /f "delims=" %%f in ('dir /b /s "%%d:\laragon\bin\php\php.exe" 2^>nul') do (
+                set PHP_BIN="%%f"
+                echo [OK] PHP detectado en Laragon: %%f
+                goto php_found
+            )
+        )
+    )
+    
+    echo [ERROR] No se encontró PHP. Instala XAMPP antes de continuar.
+    echo.
+    pause
+    exit /b 1
 )
 
-:: 2. Configurar el Backend (Laravel)
+:php_found
 echo.
+
+:: 2. Configurar el Backend (Laravel)
 echo ---------------------------------------------------
 echo ⚙️ Configurando archivo .env y Key de Laravel...
 echo ---------------------------------------------------
